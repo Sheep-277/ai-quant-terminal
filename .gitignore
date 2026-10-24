@@ -1,0 +1,73 @@
+# 本地凭证；只允许提交已脱敏的配置模板。
+.env
+.env.*
+!.env.example
+.envrc
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Python 依赖、缓存和构建产物。
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+
+# Node / Umi 依赖、缓存和测试产物；保留 package-lock.json。
+node_modules/
+.umi/
+.umi-*/
+.turbopack/
+.cache/
+coverage/
+playwright-report/
+test-results/
+
+# 本机 IDE、操作系统和运行文件。
+.idea/
+.vscode/
+.history/
+.DS_Store
+Thumbs.db
+*.log
+*.pid
+*.bak
+*.tmp
+~$*
+.claude/settings.local.json
+
+# 本地数据库文件和备份；保留可审查的 SQL 建表、迁移、seed 脚本。
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sql.gz
+*.sql.zip
+*.dump
+
+# 截图中间产物、工作簿备份和私人开发资料。
+/outputs/
+/项目开发_无需注意/
+
+# 开发文档、UI 参考和课程过程材料仅保留在本机；根目录 README 仍上传。
+/docs/
+/Process/
+/front/docs/
+
+# 第三方软件安装包不是项目运行依赖，且超过 GitHub 普通文件大小限制。
+/Process/第四周概要及DB/Er-Studio.rar
+/Process/第四周概要及DB/Er-Studio/
