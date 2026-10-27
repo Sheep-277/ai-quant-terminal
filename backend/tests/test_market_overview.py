@@ -61,10 +61,13 @@ def test_market_overview_can_use_database_latest_quotes(monkeypatch: pytest.Monk
     assert {index.symbol for index in response.indices} == {"SPX", "NDX", "VIX"}
     assert response.indices[0].name == "S&P 500"
     assert response.indices[0].value != 232.18
-    assert response.breadth.advancers_percent == 0.5
-    assert response.breadth.decliners_percent == 0.5
+    assert response.breadth.advancers_percent is None
+    assert response.breadth.decliners_percent is None
+    assert response.breadth.sample_size == 0
+    assert response.breadth.excluded_sample_size == 2
+    assert response.breadth.status == "unavailable"
     assert response.breadth.source == "database"
-    assert response.breadth.timestamp == response.timestamp
+    assert response.breadth.timestamp is None
     assert response.events[0].source == "DATABASE"
     assert response.events[0].origin == "system"
 

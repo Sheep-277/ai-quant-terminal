@@ -1,9 +1,10 @@
 from datetime import date, datetime, timedelta, timezone
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from math import isfinite
 from time import perf_counter
-from typing import Any, Mapping
+from typing import Any, Mapping, TypedDict
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
@@ -12,6 +13,15 @@ from app.providers.http_quote_fetcher import JsonPayload, RealProviderReadReques
 
 
 logger = logging.getLogger(__name__)
+
+
+class YahooHistoryCoverage(TypedDict):
+    """仅描述有效历史点与时间边界，不承诺覆盖全部交易日或回测区间。"""
+
+    valid_point_count: int
+    trend_available: bool
+    first_timestamp: str | None
+    last_timestamp: str | None
 
 
 class YahooFinanceAdapter:
@@ -125,7 +135,40 @@ class YahooFinanceAdapter:
                 retryable=True,
             )
 
+        coverage = self.assess_history_coverage(bars)
+        if not coverage["trend_available"]:
+            # 不抛异常触发 Mock 替换，真实单点继续交给页面显示历史不足。
+            logger.warning(
+                "yahoo_history_coverage market=%s symbol=%s valid_point_count=%s trend_available=false",
+                request["market"], request["symbol"], coverage["valid_point_count"],
+            )
         return bars
+
+    @staticmethod
+    def assess_history_coverage(bars: Sequence[Mapping[str, object]]) -> YahooHistoryCoverage:
+        """以有限正收盘价和不同的带时区时间点判定能否绘图，不借用最新报价补点。"""
+
+        timestamps: set[datetime] = set()
+        for bar in bars:
+            close = bar.get("close")
+            timestamp = bar.get("timestamp")
+            if isinstance(close, bool) or not isinstance(close, (int, float, str)) or not isinstance(timestamp, str):
+                continue
+            try:
+                value = float(close)
+                instant = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            except (ValueError, OverflowError):
+                continue
+            if not isfinite(value) or value <= 0 or instant.utcoffset() is None:
+                continue
+            timestamps.add(instant.astimezone(timezone.utc))
+
+        return {
+            "valid_point_count": len(timestamps),
+            "trend_available": len(timestamps) >= 2,
+            "first_timestamp": min(timestamps).isoformat() if timestamps else None,
+            "last_timestamp": max(timestamps).isoformat() if timestamps else None,
+        }
 
     def _fetch_chart_payload(
         self,

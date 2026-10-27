@@ -23,6 +23,7 @@ def test_settings_defaults_to_mock_data_provider() -> None:
     assert settings.real_provider_api_key_header == "Authorization"
     assert settings.enable_provider_status_logging is False
     assert settings.enable_market_database_reads is False
+    assert settings.enable_market_database_writes is False
     assert settings.enable_stock_database_reads is False
     assert settings.enable_monitor_database_reads is False
     assert settings.enable_ai_research_database_writes is False
@@ -37,6 +38,7 @@ def test_settings_reads_data_provider_from_environment(monkeypatch: pytest.Monke
     monkeypatch.setenv("REAL_PROVIDER_API_KEY_HEADER", "X-API-Key")
     monkeypatch.setenv("ENABLE_PROVIDER_STATUS_LOGGING", "true")
     monkeypatch.setenv("ENABLE_MARKET_DATABASE_READS", "true")
+    monkeypatch.setenv("ENABLE_MARKET_DATABASE_WRITES", "true")
     monkeypatch.setenv("ENABLE_STOCK_DATABASE_READS", "true")
     monkeypatch.setenv("ENABLE_MONITOR_DATABASE_READS", "true")
     monkeypatch.setenv("ENABLE_AI_RESEARCH_DATABASE_WRITES", "true")
@@ -50,6 +52,7 @@ def test_settings_reads_data_provider_from_environment(monkeypatch: pytest.Monke
     assert settings.real_provider_api_key_header == "X-API-Key"
     assert settings.enable_provider_status_logging is True
     assert settings.enable_market_database_reads is True
+    assert settings.enable_market_database_writes is True
     assert settings.enable_stock_database_reads is True
     assert settings.enable_monitor_database_reads is True
     assert settings.enable_ai_research_database_writes is True

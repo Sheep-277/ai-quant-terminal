@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     )
     enable_provider_status_logging: bool = Field(default=False, alias="ENABLE_PROVIDER_STATUS_LOGGING")
     enable_market_database_reads: bool = Field(default=False, alias="ENABLE_MARKET_DATABASE_READS")
+    enable_market_database_writes: bool = Field(default=False, alias="ENABLE_MARKET_DATABASE_WRITES")
     enable_stock_database_reads: bool = Field(default=False, alias="ENABLE_STOCK_DATABASE_READS")
     enable_monitor_database_reads: bool = Field(default=False, alias="ENABLE_MONITOR_DATABASE_READS")
     enable_ai_research_database_reads: bool = Field(default=False, alias="ENABLE_AI_RESEARCH_DATABASE_READS")

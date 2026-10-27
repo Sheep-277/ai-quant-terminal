@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from math import isfinite
 import os
+import logging
 from typing import Mapping, TypedDict
 
 from app.core.config import Settings
@@ -25,6 +26,7 @@ from app.providers.http_quote_fetcher import ProviderJsonFetcher, RealProviderRe
 from app.providers.field_mapping import ProviderFieldMapping, get_provider_field_mapping
 from app.providers.market_data import MockMarketDataProvider
 from app.providers.request_mapping import ProviderRequestMapping, get_provider_request_mapping
+from app.providers.tencent_index_adapter import TencentIndexAdapter
 from app.schemas.market import DataStatus, MarketEventOrigin
 
 
@@ -53,6 +55,7 @@ class RealMarketDataProvider:
         quote_fetcher: ProviderJsonFetcher | None = None,
         field_mapping: ProviderFieldMapping | None = None,
         request_mapping: ProviderRequestMapping | None = None,
+        index_history_adapter: TencentIndexAdapter | None = None,
     ) -> None:
         """保留配置、Mock 回退和可注入 fetcher，让真实源接入不影响 service。"""
 
@@ -61,6 +64,7 @@ class RealMarketDataProvider:
         self._quote_fetcher = quote_fetcher
         self._field_mapping = field_mapping or get_provider_field_mapping(settings.real_provider_name)
         self._request_mapping = request_mapping or get_provider_request_mapping(settings.real_provider_name)
+        self._index_history_adapter = index_history_adapter or TencentIndexAdapter()
 
     def _missing_configuration_items(self) -> list[str]:
         """检查真实 Provider 所需的最小配置项，不在这里读取或调用外部行情。"""
@@ -668,7 +672,23 @@ class RealMarketDataProvider:
         with ThreadPoolExecutor(max_workers=2) as executor:
             indices = executor.submit(self.get_market_indices, market)
             bars = executor.submit(self.get_bars, market, chart_symbol, interval=interval, count=count)
-            return {"indices": indices.result(), "bars": bars.result()}
+            result: ProviderMarketOverviewData = {"indices": indices.result(), "bars": bars.result()}
+
+        # 仅总览沪深300日线使用备用源，不影响个股、回测及其他市场。
+        history = result["bars"]
+        if market == MarketCode.CN and chart_symbol in {"000300.SH", "000300.SS"} and interval == "1d" and 2 <= count <= 500:
+            valid_times = {
+                bar.get("timestamp") for bar in history
+                if bar.get("source") == "yahoo_finance" and isfinite(bar["close"]) and bar["close"] > 0
+                and bar.get("timestamp") is not None
+            }
+            if len(valid_times) < 2:
+                try:
+                    result["bars"] = self._index_history_adapter.fetch_bars(market, "000300.SH", count=count)
+                except ProviderResponseError:
+                    # 备用源失败保留原始结果，页面仍显示历史不足或原有失败标识。
+                    logging.getLogger(__name__).warning("tencent_index_history unavailable market=CN symbol=000300.SH")
+        return result
 
     def get_market_indices(self, market: MarketCode) -> list[ProviderMarketIndex]:
         """逐项读取公开指数报价；缺失项保留名称但不填入 Mock 点位。"""

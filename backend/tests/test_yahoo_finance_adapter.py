@@ -77,6 +77,60 @@ def build_chart_payload() -> bytes:
     """
 
 
+def test_single_history_point_keeps_real_source(caplog: pytest.LogCaptureFixture) -> None:
+    """单点仍是真实行情，不补点、不重试，也不退回模拟历史。"""
+    payload = json.loads(build_chart_payload())
+    result = payload["chart"]["result"][0]
+    result["timestamp"] = result["timestamp"][:1]
+    result["indicators"]["quote"][0] = {
+        key: values[:1] for key, values in result["indicators"]["quote"][0].items()
+    }
+    opener = Mock(return_value=FakeResponse(json.dumps(payload).encode()))
+    bars = _index_provider(opener).get_bars(MarketCode.CN, "000300.SH", count=30)
+    assert len(bars) == 1
+    assert bars[0]["source"] == "yahoo_finance"
+    assert bars[0]["data_status"] == DataStatus.DELAYED
+    assert bars[0]["close"] == 182.5
+    opener.assert_called_once()
+    assert "valid_point_count=1 trend_available=false" in caplog.text
+
+
+def test_history_coverage_sorts_times_and_accepts_constant_prices() -> None:
+    coverage = YahooFinanceAdapter.assess_history_coverage([
+        {"close": "100", "timestamp": "2026-10-02T00:00:00Z"},
+        {"close": 100, "timestamp": "2026-10-01T00:00:00Z"},
+        {"close": 100, "timestamp": "2026-10-01T08:00:00+08:00"},
+    ])
+    assert coverage == {
+        "valid_point_count": 2, "trend_available": True,
+        "first_timestamp": "2026-10-01T00:00:00+00:00",
+        "last_timestamp": "2026-10-02T00:00:00+00:00",
+    }
+
+
+def test_duplicate_instants_do_not_form_a_trend() -> None:
+    coverage = YahooFinanceAdapter.assess_history_coverage([
+        {"close": 100, "timestamp": "2026-10-01T00:00:00Z"},
+        {"close": 101, "timestamp": "2026-10-01T08:00:00+08:00"},
+    ])
+    assert coverage["valid_point_count"] == 1
+    assert coverage["trend_available"] is False
+
+
+@pytest.mark.parametrize("close,timestamp", [
+    (None, "2026-10-01T00:00:00Z"), (True, "2026-10-01T00:00:00Z"),
+    (float("nan"), "2026-10-01T00:00:00Z"), ("inf", "2026-10-01T00:00:00Z"),
+    (0, "2026-10-01T00:00:00Z"), (-1, "2026-10-01T00:00:00Z"),
+    ("invalid", "2026-10-01T00:00:00Z"), (100, "invalid"),
+    (100, None), (100, "2026-10-01T00:00:00"),
+])
+def test_invalid_history_points_have_no_time_bounds(close: object, timestamp: object) -> None:
+    assert YahooFinanceAdapter.assess_history_coverage([{"close": close, "timestamp": timestamp}]) == {
+        "valid_point_count": 0, "trend_available": False,
+        "first_timestamp": None, "last_timestamp": None,
+    }
+
+
 def test_yahoo_finance_adapter_fetches_quote_without_api_key() -> None:
     captured_request: Request | None = None
 
